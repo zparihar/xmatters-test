@@ -1,0 +1,38 @@
+
+#1	Create Keypair and create PEM File
+
+aws ec2 create-key-pair --key-name testkey3 --query 'KeyMaterial' --output text > testkey3.pem
+
+#2	Change Permissions of PEM File
+chmod 400 testkey3.pem
+
+#3	Create Instance with Key Name
+
+aws ec2 run-instances --image-id ami-4dbf9e7d --count 2 --instance-type t2.micro --key-name testkey3 --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups default | tee output-of-2-instances-of-testkey-3.log
+
+#4	Create Volumes to attach to Instance
+
+aws ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume1-testkey3.log
+aws ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume2-testkey3.log
+
+#5	Retrieve Instance ID from the creation of the instances (perhaps even fetch it from the Log file)
+
+grep InstanceId output-of-2-instances-of-testkey-3.log 
+
+#6	Grab the Volume ID from the creation of the volumes (perhaps even fetch it from the Log file)
+
+aws ec2 attach-volume --volume-id vol-002b7012 --instance-id i-36af8dc0 --device /dev/xvdb | tee volume1-attach-testkey3.log
+aws ec2 attach-volume --volume-id vol-062b7014 --instance-id i-31af8dc7 --device /dev/xvdb | tee volume2-attach-testkey3.log
+
+#7	Grab the Public IP Address and the Public DNS Name from the Instance-id's
+
+aws ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-1-public-ip-address.log
+aws ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-2-public-ip-address.log
+aws ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-1-public-dns-name.log
+aws ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-2-public-dns-name.log
+
+#8	Log into the system with the Public DNS Name/IP Address
+
+ssh -i /home/zubin/deleteme/AWS-Amazon/testkey3.pem -o "StrictHostKeyChecking no" ec2-user@ec2-52-26-88-52.us-west-2.compute.amazonaws.com
+
+
