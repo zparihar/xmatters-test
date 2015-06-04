@@ -1,3 +1,121 @@
+#!/bin/bash
+
+
+#USAGE: launch -a <app> -e <environment> -n <numb_server> -s <server_size>
+
+usage()
+{
+cat << EOF
+
+usage: $0 -a <app> -e <environment> -n <numb_server> -s <server_size>
+
+This script run the test1 or test2 over a machine.
+
+OPTIONS:
+   -h      Show this message
+   -a      Application Type can be 'proxy' or 'webserver'
+   -e      Environment type can be 'development' or 'production'
+   -n      Number of Servers to create should be between 1 and 10
+   -s      Server size can be between 1 and 10.  The number is in Gigabytes.
+
+EOF
+}
+
+AppType=
+EnvironmentType=
+NumOfServers=
+SizeOfServers=
+
+while getopts “ha:e:n:s:” OPTION
+do
+     case $OPTION in
+         h)
+             usage
+             exit 1
+             ;;
+         a)
+             AppType=$OPTARG
+                        if [ "$AppType" != "proxy" ] && [ "$AppType" != "webserver" ] 
+                        then
+                                echo
+                                echo "The -a argument value must be either 'proxy' or 'webserver'"
+                                echo
+                                usage
+                                exit 1
+                        fi
+             ;;
+         e)
+             EnvironmentType=$OPTARG
+                        if [ "$EnvironmentType" != "development" ] && [ "$EnvironmentType" != "production" ] 
+                        then
+                                echo
+                                echo "The -e argument value must be either 'development' or 'production'"
+                                echo
+                                usage
+                                exit 1
+                        fi
+             ;;
+         n)
+             NumOfServers=$OPTARG
+
+                        # Check to see if this is a valid integer
+                        if [[ $NumOfServers =~ ^-?[0-9]+$ ]]
+                        then
+                                echo "$NumOfServers is an integer" > /dev/null
+                        else
+                                echo "-n $NumOfServers is not an integer"
+                                usage
+                                exit 1
+                        fi
+
+
+                       if [ $NumOfServers -gt 10 ] || [ $NumOfServers -lt 1 ]
+                       then
+                               echo
+                               echo "The Number of Servers are out of range.  Please Choose Between     1 and 10 Servers"
+                               echo
+                               usage
+                               exit 1
+                       fi
+
+
+             ;;
+         s)
+             SizeOfServers=$OPTARG
+
+                        # Check to see if this is a valid integer
+                        if [[ $SizeOfServers =~ ^-?[0-9]+$ ]]
+                        then
+                                echo "$SizeOfServers is an integer" > /dev/null
+                        else
+                                echo "-s $SizeOfServers is not an integer"
+                                usage
+                                exit 1
+                        fi
+
+                        if [ $SizeOfServers -gt 10 ] || [ $SizeOfServers -lt 1 ]
+                        then
+                                echo
+                                echo "The size of Servers are out of range.  Please choose between 1 and 10 Gigabytes"
+                                echo
+                                usage
+                                exit 1
+                        fi
+             ;;
+         ?)
+             usage
+             exit
+             ;;
+     esac
+done
+
+if [[ -z $AppType ]] || [[ -z $EnvironmentType ]] || [[ -z $NumOfServers ]] || [[ -z $SizeOfServers ]]
+then
+     usage
+     exit 1
+fi
+
+
 
 #1	Create Keypair and create PEM File
 
