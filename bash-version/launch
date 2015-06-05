@@ -327,7 +327,7 @@ echo
 echo
 echo "Examples"
 echo
-echo "ssh -i sshkey.pem ec2-user@ip-address-of-instance"
+echo "ssh -i $KeyPairNameFile ec2-user@ip-address-of-instance"
 echo
 echo
 echo
