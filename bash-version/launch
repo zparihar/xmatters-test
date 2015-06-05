@@ -1,6 +1,34 @@
 #!/bin/bash
 
 
+
+
+
+
+# --------------- Variable Definitions --------------- # 
+AWS=`/usr/bin/which aws`
+CHMOD=`/usr/bin/which chmod`
+DATE=`/usr/bin/which date`
+CurrentDateStamp=`$DATE +%Y_%m_%d_%H_%M_%S_%N`
+UserDataFile=user-data-${CurrentDateStamp}.sh
+AppType1=awsproxyserver
+AppType2=awswebserver
+AWSDefaultAmi=ami-4dbf9e7d
+AWSInstanceType=t2.micro
+AWSSecurityGroups=default
+
+#####  TODO ##################
+# Check to See if AWS Exists
+# If not
+# 1. find out OS (RHEL Based, DEB Based or OSX)
+# 2. Download and install the CLI Tool (Version 1.2.9)
+##############################
+
+
+
+
+
+
 #USAGE: launch -a <app> -e <environment> -n <numb_server> -s <server_size>
 
 usage()
@@ -9,11 +37,9 @@ cat << EOF
 
 usage: $0 -a <app> -e <environment> -n <numb_server> -s <server_size>
 
-This script run the test1 or test2 over a machine.
-
 OPTIONS:
    -h      Show this message
-   -a      Application Type can be 'proxy' or 'webserver'
+   -a      Application Type can be '$AppType1' or '$AppType2'
    -e      Environment type can be 'development' or 'production'
    -n      Number of Servers to create should be between 1 and 10
    -s      Server size can be between 1 and 10.  The number is in Gigabytes.
@@ -35,10 +61,10 @@ do
              ;;
          a)
              AppType=$OPTARG
-                        if [ "$AppType" != "proxy" ] && [ "$AppType" != "webserver" ] 
+                        if [ "$AppType" != "$AppType1" ] && [ "$AppType" != "$AppType2" ]
                         then
                                 echo
-                                echo "The -a argument value must be either 'proxy' or 'webserver'"
+                                echo "The -a argument value must be either '$AppType1' or '$AppType2'"
                                 echo
                                 usage
                                 exit 1
@@ -77,8 +103,6 @@ do
                                usage
                                exit 1
                        fi
-
-
              ;;
          s)
              SizeOfServers=$OPTARG
@@ -117,21 +141,93 @@ fi
 
 
 
+
+# Generate USER-DATA File
+
+
+cat << EOF > $UserDataFile
+#!/bin/bash
+
+# 1.    Install Puppet and Get
+yum -y install puppet git
+
+#2.     Back up orignal puppet Directory
+mv /etc/puppet /etc/puppet.orig
+
+#3.     Check out xMatters Puppet Configuration from Git Repository
+git clone https://xmatters-puppet.git /etc/puppet
+
+
+#4.     Define role of local serveer
+
+# e.g. for if $AppType1 or $AppType2 is passed to the server
+
+touch /etc/$AppType
+
+#5.     Create a custom Fact for the Role type of this server
+
+cat << endmsg > /usr/share/ruby/vendor_ruby/facter/role.rb
+# role.rb
+#
+require 'facter'
+Facter.add("role") do
+        setcode do
+                if File.exist? '/etc/$AppType1'
+                        '$AppType1'
+                end
+        end
+end
+
+Facter.add("role") do
+        setcode do
+                if File.exist? '/etc/$AppType2'
+                        '$AppType2'
+                end
+        end
+end
+endmsg
+
+#6.    Define Role type based on Environment and App Type
+
+puppet apply /etc/puppet/manifests/${EnvironmentType}.pp
+
+
+
+EOF
+
+
+
+
+
+
+
+
 #1	Create Keypair and create PEM File
 
-aws ec2 create-key-pair --key-name testkey3 --query 'KeyMaterial' --output text > testkey3.pem
+
+#KeyPairName=`$DATE +%Y_%m_%d_%H_%M_%S_%N`
+KeyPairName=$CurrentDateStamp
+KeyPairNameFile=${KeyPairName}.pem
+
+
+#$AWS ec2 create-key-pair --key-name testkey3 --query 'KeyMaterial' --output text > testkey3.pem
+#$AWS ec2 create-key-pair --key-name $KEYPAIRNAME --query 'KeyMaterial' --output text > testkey3.pem
+$AWS ec2 create-key-pair --key-name $KeyPairName --query 'KeyMaterial' --output text > $KeyPairNameFile
 
 #2	Change Permissions of PEM File
-chmod 400 testkey3.pem
+
+#$CHMOD 400 testkey3.pem
+$CHMOD 400 $KeyPairNameFile
 
 #3	Create Instance with Key Name
 
-aws ec2 run-instances --image-id ami-4dbf9e7d --count 2 --instance-type t2.micro --key-name testkey3 --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups default | tee output-of-2-instances-of-testkey-3.log
+$AWS ec2 run-instances --image-id ami-4dbf9e7d --count 2 --instance-type t2.micro --key-name testkey3 --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups default | tee output-of-2-instances-of-testkey-3.log
 
+$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups $AWSSecurityGroups | tee output-of-2-instances-of-testkey-3.log
 #4	Create Volumes to attach to Instance
 
-aws ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume1-testkey3.log
-aws ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume2-testkey3.log
+$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume1-testkey3.log
+$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume2-testkey3.log
 
 #5	Retrieve Instance ID from the creation of the instances (perhaps even fetch it from the Log file)
 
@@ -139,15 +235,15 @@ grep InstanceId output-of-2-instances-of-testkey-3.log
 
 #6	Grab the Volume ID from the creation of the volumes (perhaps even fetch it from the Log file)
 
-aws ec2 attach-volume --volume-id vol-002b7012 --instance-id i-36af8dc0 --device /dev/xvdb | tee volume1-attach-testkey3.log
-aws ec2 attach-volume --volume-id vol-062b7014 --instance-id i-31af8dc7 --device /dev/xvdb | tee volume2-attach-testkey3.log
+$AWS ec2 attach-volume --volume-id vol-002b7012 --instance-id i-36af8dc0 --device /dev/xvdb | tee volume1-attach-testkey3.log
+$AWS ec2 attach-volume --volume-id vol-062b7014 --instance-id i-31af8dc7 --device /dev/xvdb | tee volume2-attach-testkey3.log
 
 #7	Grab the Public IP Address and the Public DNS Name from the Instance-id's
 
-aws ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-1-public-ip-address.log
-aws ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-2-public-ip-address.log
-aws ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-1-public-dns-name.log
-aws ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-2-public-dns-name.log
+$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-1-public-ip-address.log
+$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-2-public-ip-address.log
+$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-1-public-dns-name.log
+$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-2-public-dns-name.log
 
 #8	Log into the system with the Public DNS Name/IP Address
 
