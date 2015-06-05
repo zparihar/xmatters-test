@@ -16,14 +16,18 @@ AppType2=awswebserver
 AWSDefaultAmi=ami-4dbf9e7d
 AWSInstanceType=t2.micro
 AWSSecurityGroups=default
+AWSAvailabilityZone=us-west-2a
+
 
 #####  TODO ##################
 # Check to See if AWS Exists
 # If not
-# 1. find out OS (RHEL Based, DEB Based or OSX)
+# 1. Find out OS (RHEL Based, DEB Based or OSX)
 # 2. Download and install the CLI Tool (Version 1.2.9)
+# 3. Setup LOGGER
+# 4. Create Log Directory
+# 5. Create User-Data Directory
 ##############################
-
 
 
 
@@ -210,43 +214,102 @@ KeyPairName=$CurrentDateStamp
 KeyPairNameFile=${KeyPairName}.pem
 
 
-#$AWS ec2 create-key-pair --key-name testkey3 --query 'KeyMaterial' --output text > testkey3.pem
+#aws ec2 create-key-pair --key-name testkey3 --query 'KeyMaterial' --output text > testkey3.pem
 #$AWS ec2 create-key-pair --key-name $KEYPAIRNAME --query 'KeyMaterial' --output text > testkey3.pem
 $AWS ec2 create-key-pair --key-name $KeyPairName --query 'KeyMaterial' --output text > $KeyPairNameFile
 
 #2	Change Permissions of PEM File
 
-#$CHMOD 400 testkey3.pem
+#chmod 400 testkey3.pem
 $CHMOD 400 $KeyPairNameFile
 
-#3	Create Instance with Key Name
+#3	Create Instance(s) with Key Name
 
-$AWS ec2 run-instances --image-id ami-4dbf9e7d --count 2 --instance-type t2.micro --key-name testkey3 --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups default | tee output-of-2-instances-of-testkey-3.log
+#aws ec2 run-instances --image-id ami-4dbf9e7d --count 2 --instance-type t2.micro --key-name testkey3 --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups default | tee output-of-2-instances-of-testkey-3.log
 
-$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups $AWSSecurityGroups | tee output-of-2-instances-of-testkey-3.log
+#USERDATA VERSION
+#$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --user-data file://$UserDataFile --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
+
+#NO USERDATA VERSION
+$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
+
+INSTANCEIDS=`grep InstanceId ${KeyPairName}-instance.log | awk '{print $4;}'`
+
+# capture instance id into variable array
+# grep InstanceId create-instance.log | awk '{print $4;}'
+
+#Printing Solution:
+#Print first variable
+# echo $INSTANCEIDS | awk -v N=1 '{print $N}'
+#Print second variable
+# echo $INSTANCEIDS | awk -v N=2 '{print $N}'
+
+
+
 #4	Create Volumes to attach to Instance
 
-$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume1-testkey3.log
-$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume2-testkey3.log
+#$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume1-testkey3.log
+#$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume2-testkey3.log
+
+# Do a For Loop for the number of Instances created
+
+for (( i=1 ; i<=$NumOfServers ; i+=1 ))
+do
+	$AWS ec2 create-volume --size $SizeOfServers --availability-zone $AWSAvailabilityZone | tee ${KeyPairName}-volume${i}.log
+done
+
+VOLUMEIDS=`cat ${KeyPairName}-volume* | grep VolumeId | awk '{print $4}'`
+
+#Printing Solution:
+#Print first variable
+# echo $VOLUMEIDS | awk -v N=1 '{print $N}'
+#Print second variable
+# echo $VOLUMEIDS | awk -v N=2 '{print $N}'
+
+
 
 #5	Retrieve Instance ID from the creation of the instances (perhaps even fetch it from the Log file)
 
-grep InstanceId output-of-2-instances-of-testkey-3.log 
+#grep InstanceId output-of-2-instances-of-testkey-3.log 
 
 #6	Grab the Volume ID from the creation of the volumes (perhaps even fetch it from the Log file)
 
-$AWS ec2 attach-volume --volume-id vol-002b7012 --instance-id i-36af8dc0 --device /dev/xvdb | tee volume1-attach-testkey3.log
-$AWS ec2 attach-volume --volume-id vol-062b7014 --instance-id i-31af8dc7 --device /dev/xvdb | tee volume2-attach-testkey3.log
+#$AWS ec2 attach-volume --volume-id vol-002b7012 --instance-id i-36af8dc0 --device /dev/xvdb | tee volume1-attach-testkey3.log
+#$AWS ec2 attach-volume --volume-id vol-062b7014 --instance-id i-31af8dc7 --device /dev/xvdb | tee volume2-attach-testkey3.log
+
+for (( i=1 ; i<=$NumOfServers ; i+=1 ))
+do
+        INSTANCE=`echo $INSTANCEIDS | awk -v N=${i} '{print $N}'`
+        VOLUME=`echo $VOLUMEIDS | awk -v N=${i} '{print $N}'`
+
+        $AWS ec2 attach-volume --volume-id $VOLUME --instance-id $INSTANCE --device /dev/xvdb | tee ${KeyPairName}-attach-volume${i}.log
+done
+
 
 #7	Grab the Public IP Address and the Public DNS Name from the Instance-id's
 
-$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-1-public-ip-address.log
-$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-2-public-ip-address.log
-$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-1-public-dns-name.log
-$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-2-public-dns-name.log
+#$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-1-public-ip-address.log
+#$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-2-public-ip-address.log
+#$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-1-public-dns-name.log
+#$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-2-public-dns-name.log
+
+#for (( i=1 ; i<=$NumOfServers ; i+=1 ))
+#do
+#	INSTANCEIDS${i}=`echo $INSTANCEIDS | awk -v N=${i} '{print $N}'`
+#	$AWS ec2 describe-instances --instance-ids $INSTANCEIDS${i} --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee ${KeyPairName}-$INSTANCEIDS${i}-public-ip-address.log
+#done
+
+for (( i=1 ; i<=$NumOfServers ; i+=1 ))
+do
+        INSTANCE=`echo $INSTANCEIDS | awk -v N=${i} '{print $N}'`
+
+	$AWS ec2 describe-instances --instance-ids $INSTANCE --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee ${KeyPairName}-$INSTANCE-public-ip-address.log
+	$AWS ec2 describe-instances --instance-ids $INSTANCE --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee ${KeyPairName}-$INSTANCE-public-dns-name.log
+done
+
 
 #8	Log into the system with the Public DNS Name/IP Address
 
-ssh -i /home/zubin/deleteme/AWS-Amazon/testkey3.pem -o "StrictHostKeyChecking no" ec2-user@ec2-52-26-88-52.us-west-2.compute.amazonaws.com
+#ssh -i /home/zubin/deleteme/AWS-Amazon/testkey3.pem -o "StrictHostKeyChecking no" ec2-user@ec2-52-26-88-52.us-west-2.compute.amazonaws.com
 
 
