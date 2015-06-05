@@ -214,7 +214,7 @@ fi
 
 #1	Generate the User Data file
 
-#GenerateUserDataFile
+GenerateUserDataFile
 
 
 
@@ -232,10 +232,10 @@ $CHMOD 400 $KeyPairNameFile
 #3	Create Instance(s) with KeyPairName
 
 #USERDATA VERSION
-#$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --placement AvailabilityZone=$AWSAvailabilityZone --user-data file://$UserDataFile --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
+$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --placement AvailabilityZone=$AWSAvailabilityZone --user-data file://$UserDataFile --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
 
 #NO USERDATA VERSION
-$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --placement AvailabilityZone=$AWSAvailabilityZone --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
+#$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --placement AvailabilityZone=$AWSAvailabilityZone --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
 
 INSTANCEIDS=`grep InstanceId ${KeyPairName}-instance.log | awk '{print $4;}'`
 
@@ -302,20 +302,22 @@ done
 echo
 echo
 echo
-echo "Here are the details on how to login to your server instances:"
+echo "HERE ARE THE DETAILS ON HOW TO LOGIN TO YOUR SERVER INSTANCES:"
 echo 
-echo "Use the following Username: ec2-user"
-echo "Use the following SSH KEY: $KeyPairNameFile"
+echo "Use the following Username:	ec2-user"
+echo "Use the following SSH KEY: 	$KeyPairNameFile"
+echo
 echo
 
 for (( i=1 ; i<=$NumOfServers ; i+=1 ))
 do
         INSTANCE=`echo $INSTANCEIDS | awk -v N=${i} '{print $N}'`
 	
-	echo "IP Address and Public DNS Name of Instance $INSTANCE :"
+	echo "IP Address and Public DNS Name of INSTANCE: $INSTANCE"
 	echo
 	$AWS ec2 describe-instances --instance-ids $INSTANCE --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee ${KeyPairName}-$INSTANCE-public-ip-address.log
 	$AWS ec2 describe-instances --instance-ids $INSTANCE --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee ${KeyPairName}-$INSTANCE-public-dns-name.log
+	echo
 	echo
 	echo
 done
@@ -325,7 +327,7 @@ echo
 echo
 echo "Examples"
 echo
-echo "ssh -i sshkey.pem ec2-user@ip-address"
+echo "ssh -i sshkey.pem ec2-user@ip-address-of-instance"
 echo
 echo
 echo
