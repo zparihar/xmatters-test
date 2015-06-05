@@ -2,7 +2,64 @@
 
 
 
+################# Function Definition ###################
 
+function GenerateUserDataFile
+{
+	
+# Generate USER-DATA File
+
+cat << EOF > $UserDataFile
+#!/bin/bash
+
+# 1.    Install Puppet and Get
+yum -y install puppet git
+
+#2.     Back up orignal puppet Directory
+mv /etc/puppet /etc/puppet.orig
+
+#3.     Check out xMatters Puppet Configuration from Git Repository
+git clone https://xmatters-puppet.git /etc/puppet
+
+
+#4.     Define role of local serveer
+
+# e.g. for if $AppType1 or $AppType2 is passed to the server
+
+touch /etc/$AppType
+
+#5.     Create a custom Fact for the Role type of this server
+
+cat << endmsg > /usr/share/ruby/vendor_ruby/facter/role.rb
+# role.rb
+#
+require 'facter'
+Facter.add("role") do
+        setcode do
+                if File.exist? '/etc/$AppType1'
+                        '$AppType1'
+                end
+        end
+end
+
+Facter.add("role") do
+        setcode do
+                if File.exist? '/etc/$AppType2'
+                        '$AppType2'
+                end
+        end
+end
+endmsg
+
+#6.    Define Role type based on Environment and App Type
+
+puppet apply /etc/puppet/manifests/${EnvironmentType}.pp
+
+
+
+EOF
+
+}
 
 
 # --------------- Variable Definitions --------------- # 
@@ -146,95 +203,35 @@ fi
 
 
 
-# Generate USER-DATA File
+#1	Generate the User Data file
 
-
-cat << EOF > $UserDataFile
-#!/bin/bash
-
-# 1.    Install Puppet and Get
-yum -y install puppet git
-
-#2.     Back up orignal puppet Directory
-mv /etc/puppet /etc/puppet.orig
-
-#3.     Check out xMatters Puppet Configuration from Git Repository
-git clone https://xmatters-puppet.git /etc/puppet
-
-
-#4.     Define role of local serveer
-
-# e.g. for if $AppType1 or $AppType2 is passed to the server
-
-touch /etc/$AppType
-
-#5.     Create a custom Fact for the Role type of this server
-
-cat << endmsg > /usr/share/ruby/vendor_ruby/facter/role.rb
-# role.rb
-#
-require 'facter'
-Facter.add("role") do
-        setcode do
-                if File.exist? '/etc/$AppType1'
-                        '$AppType1'
-                end
-        end
-end
-
-Facter.add("role") do
-        setcode do
-                if File.exist? '/etc/$AppType2'
-                        '$AppType2'
-                end
-        end
-end
-endmsg
-
-#6.    Define Role type based on Environment and App Type
-
-puppet apply /etc/puppet/manifests/${EnvironmentType}.pp
+#GenerateUserDataFile
 
 
 
-EOF
+#2	Create Keypair on Amazon and create the PEM File with appropriate permissions
 
 
-
-
-
-
-
-
-#1	Create Keypair and create PEM File
-
-
-#KeyPairName=`$DATE +%Y_%m_%d_%H_%M_%S_%N`
 KeyPairName=$CurrentDateStamp
 KeyPairNameFile=${KeyPairName}.pem
 
-
-#aws ec2 create-key-pair --key-name testkey3 --query 'KeyMaterial' --output text > testkey3.pem
-#$AWS ec2 create-key-pair --key-name $KEYPAIRNAME --query 'KeyMaterial' --output text > testkey3.pem
 $AWS ec2 create-key-pair --key-name $KeyPairName --query 'KeyMaterial' --output text > $KeyPairNameFile
 
-#2	Change Permissions of PEM File
-
-#chmod 400 testkey3.pem
 $CHMOD 400 $KeyPairNameFile
 
-#3	Create Instance(s) with Key Name
 
-#aws ec2 run-instances --image-id ami-4dbf9e7d --count 2 --instance-type t2.micro --key-name testkey3 --user-data file:///home/zubin/deleteme/AWS-Amazon/user-data-script.sh --security-groups default | tee output-of-2-instances-of-testkey-3.log
+#3	Create Instance(s) with KeyPairName
 
 #USERDATA VERSION
-#$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --user-data file://$UserDataFile --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
+#$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --placement AvailabilityZone=$AWSAvailabilityZone --user-data file://$UserDataFile --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
 
 #NO USERDATA VERSION
-$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
+$AWS ec2 run-instances --image-id $AWSDefaultAmi --count $NumOfServers --instance-type $AWSInstanceType --key-name $KeyPairName --placement AvailabilityZone=$AWSAvailabilityZone --security-groups $AWSSecurityGroups | tee ${KeyPairName}-instance.log
 
 INSTANCEIDS=`grep InstanceId ${KeyPairName}-instance.log | awk '{print $4;}'`
 
+
+# ------- BASH Notes ------- #
 # capture instance id into variable array
 # grep InstanceId create-instance.log | awk '{print $4;}'
 
@@ -243,13 +240,11 @@ INSTANCEIDS=`grep InstanceId ${KeyPairName}-instance.log | awk '{print $4;}'`
 # echo $INSTANCEIDS | awk -v N=1 '{print $N}'
 #Print second variable
 # echo $INSTANCEIDS | awk -v N=2 '{print $N}'
+# -------------------------- #
 
 
 
 #4	Create Volumes to attach to Instance
-
-#$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume1-testkey3.log
-#$AWS ec2 create-volume --size 3 --availability-zone us-west-2a | tee volume2-testkey3.log
 
 # Do a For Loop for the number of Instances created
 
@@ -260,22 +255,29 @@ done
 
 VOLUMEIDS=`cat ${KeyPairName}-volume* | grep VolumeId | awk '{print $4}'`
 
+# ------- BASH Notes ------- #
+# capture volume id into variable array
+# grep VolumeId Volume.log | awk '{print $4;}'
+
 #Printing Solution:
 #Print first variable
 # echo $VOLUMEIDS | awk -v N=1 '{print $N}'
 #Print second variable
 # echo $VOLUMEIDS | awk -v N=2 '{print $N}'
+# -------------------------- #
 
 
 
-#5	Retrieve Instance ID from the creation of the instances (perhaps even fetch it from the Log file)
+#5	Attach Volumes to Instances
 
-#grep InstanceId output-of-2-instances-of-testkey-3.log 
+# Wait till Instance is up for the volume to be able to connect correctly
+echo
+echo "Waiting for Instances to start"
+echo
+sleep 30
 
-#6	Grab the Volume ID from the creation of the volumes (perhaps even fetch it from the Log file)
+# Todo - Improve this process by querying to see if the instance is fully running #
 
-#$AWS ec2 attach-volume --volume-id vol-002b7012 --instance-id i-36af8dc0 --device /dev/xvdb | tee volume1-attach-testkey3.log
-#$AWS ec2 attach-volume --volume-id vol-062b7014 --instance-id i-31af8dc7 --device /dev/xvdb | tee volume2-attach-testkey3.log
 
 for (( i=1 ; i<=$NumOfServers ; i+=1 ))
 do
@@ -286,30 +288,36 @@ do
 done
 
 
-#7	Grab the Public IP Address and the Public DNS Name from the Instance-id's
+#7	Grab the Public IP Address and the Public DNS Name from the Instance-id's and display how to connect to the Instances
 
-#$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-1-public-ip-address.log
-#$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee testkey3-instance-2-public-ip-address.log
-#$AWS ec2 describe-instances --instance-ids i-36af8dc0 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-1-public-dns-name.log
-#$AWS ec2 describe-instances --instance-ids i-31af8dc7 --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee testkey3-instance-2-public-dns-name.log
-
-#for (( i=1 ; i<=$NumOfServers ; i+=1 ))
-#do
-#	INSTANCEIDS${i}=`echo $INSTANCEIDS | awk -v N=${i} '{print $N}'`
-#	$AWS ec2 describe-instances --instance-ids $INSTANCEIDS${i} --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee ${KeyPairName}-$INSTANCEIDS${i}-public-ip-address.log
-#done
+echo
+echo
+echo
+echo "Here are the details on how to login to your server instances:"
+echo 
+echo "Use the following Username: ec2-user"
+echo "Use the following SSH KEY: $KeyPairNameFile"
+echo
 
 for (( i=1 ; i<=$NumOfServers ; i+=1 ))
 do
         INSTANCE=`echo $INSTANCEIDS | awk -v N=${i} '{print $N}'`
-
+	
+	echo "IP Address and Public DNS Name of Instance $INSTANCE :"
+	echo
 	$AWS ec2 describe-instances --instance-ids $INSTANCE --query "Reservations[*].Instances[*].PublicIpAddress" --output text | tee ${KeyPairName}-$INSTANCE-public-ip-address.log
 	$AWS ec2 describe-instances --instance-ids $INSTANCE --query "Reservations[*].Instances[*].PublicDnsName" --output text | tee ${KeyPairName}-$INSTANCE-public-dns-name.log
+	echo
+	echo
 done
 
 
-#8	Log into the system with the Public DNS Name/IP Address
-
-#ssh -i /home/zubin/deleteme/AWS-Amazon/testkey3.pem -o "StrictHostKeyChecking no" ec2-user@ec2-52-26-88-52.us-west-2.compute.amazonaws.com
-
+echo
+echo
+echo "Examples"
+echo
+echo "ssh -i sshkey.pem ec2-user@ip-address"
+echo
+echo
+echo
 
