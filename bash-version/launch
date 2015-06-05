@@ -19,7 +19,10 @@ yum -y install puppet git
 mv /etc/puppet /etc/puppet.orig
 
 #3.     Check out xMatters Puppet Configuration from Git Repository
-git clone https://xmatters-puppet.git /etc/puppet
+
+git clone --bare https://github.com/zparihar/xmatters-puppet.git /etc/puppet
+rm -fr /etc/puppet/*
+git clone https://github.com/zparihar/xmatters-puppet.git /etc/puppet
 
 
 #4.     Define role of local serveer
@@ -54,7 +57,6 @@ endmsg
 #6.    Define Role type based on Environment and App Type
 
 puppet apply /etc/puppet/manifests/${EnvironmentType}.pp
-
 
 
 EOF
