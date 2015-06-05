@@ -54,10 +54,17 @@ Facter.add("role") do
 end
 endmsg
 
-#6.    Define Role type based on Environment and App Type
 
-puppet apply /etc/puppet/manifests/${EnvironmentType}.pp
+#6.	Configure disk Partition
 
+parted -s -a optimal /dev/xvdb mklabel msdos
+parted -s -a optimal /dev/xvdb mkpart primary ext2 0% 100%
+mkfs.xfs -f /dev/xvdb1
+
+
+#7.    Define Role type based on Environment and App Type
+
+puppet apply --modulepath=/etc/puppet/environments/${EnvironmentType}/modules /etc/puppet/manifests/site.pp
 
 EOF
 
