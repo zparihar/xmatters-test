@@ -1,9 +1,20 @@
 #!/bin/bash
 
-if [ -f /etc/debian_version ]; then
-	sudo apt-get install awscli
-elif [ -f /etc/redhat-release ]; then
-	curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
-	unzip awscli-bundle.zip
-	sudo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
-fi
+curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
+unzip awscli-bundle.zip
+sudo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
+
+mkdir ~/.aws
+
+cat << EOF > ~/.aws/config
+[default]
+aws_access_key_id = 
+output = table
+aws_secret_access_key = 
+region = us-west-2
+
+EOF
+
+echo
+echo "Please Place your AWS Access Key and AWS Secret Access Key in to the file: ~/.aws/config"
+echo

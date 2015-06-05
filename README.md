@@ -4,6 +4,7 @@ Test for Xmatters
 
 This script is designed to spin up Instances in AWS EC2 when given specific parameters.
 When fired up, it will use the AWS CLI (version 1.2.9) which is contained in most Linux Distribution Repositories.  AWS CLI is used to make API Calls to Amazon Web Services.
+If you do not have awscli on your machine and you do not have it in the repository, please run the supplied Install script in the directory 'bash-version'.  It will prompt you to add your AWS ACCESS KEY and AWS Secret Key".
 
 The tool takes in user supplied parameters where it does error checking.  I've currently limited the number of instances that you can spin up at a time to 10 and also limited the storage space to 10GB's.  All Instances are running Centos 7 - 64bit AMI's.  Since this is already Centos 7, Python version 2.7 is installed (it is also already specified in the Puppet configuration).
 
